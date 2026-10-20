@@ -6,6 +6,7 @@ from linebot.v3.messaging import (DatetimePickerAction, FlexBox, FlexBubble, Fle
                                   FlexMessage, FlexSeparator, FlexText, PostbackAction,
                                   QuickReply, QuickReplyItem)
 
+from .flexcheck import clip
 from .logic import (NO_PLAN, add_candidate, cmd_join, cmd_leave, cmd_search, compute_stats,
                     iso_to_label, set_budget_amount, toggle_vote)
 
@@ -32,8 +33,7 @@ BUDGETS = (
 
 
 def _clip(text, n=20):
-    text = "" if text is None else str(text)
-    return text if len(text) <= n else text[: n - 1] + "…"
+    return clip(text, n)
 
 
 def _post(label, data, display=None):

@@ -40,5 +40,7 @@ def test_rps():
 def test_dispatch():
     assert dispatch("哈囉") is None
     assert "可用指令" in dispatch("幫助") and "可用指令" in dispatch("指令")
+    assert "可用指令" in dispatch("@小龜頭 幫助")
+    assert "可用指令" in dispatch("@小龜頭\u3000指令")
     assert "骰子" in dispatch("骰子 2")
     assert set(REGISTRY) >= {"擲骰子", "骰子", "抽籤", "今日運勢", "吃什麼", "猜拳", "幫助", "指令"}

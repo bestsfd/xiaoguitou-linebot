@@ -3,6 +3,7 @@ REGISTRY: 娛樂指令 handler(args, user_id) -> str
 CAMP_REGISTRY: 露營指令 handler(args, ctx) -> str | None（需要聊天室狀態）"""
 from . import dice, fortune_stick, daily_luck, food, rps, help as help_cmd
 from ..camp.logic import CAMP_REGISTRY, Ctx
+from ..inbound import prepare_message
 
 REGISTRY = {
     "擲骰子": dice.handle, "骰子": dice.handle,
@@ -15,8 +16,9 @@ REGISTRY = {
 
 
 def dispatch(text: str, user_id: str = "", ctx: "Ctx | None" = None):
-    """回傳回覆字串；非指令回傳 None。"""
-    parts = text.strip().split()
+    """回傳回覆字串；非指令回傳 None。開頭的 @名稱與全形空白會先拿掉。"""
+    text, _mentioned = prepare_message(text)
+    parts = text.split() if text else []
     if not parts:
         return None
     key, args = parts[0], parts[1:]

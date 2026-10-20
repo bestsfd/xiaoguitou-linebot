@@ -20,12 +20,23 @@ def client(monkeypatch, tmp_path):
     return TestClient(app)
 
 
-def payload(text, source):
-    return json.dumps({"destination": "Uxxx", "events": [{
+def payload(text, source, mention=None, destination="Uxxx"):
+    message = {"type": "text", "id": "1", "text": text, "quoteToken": "q"}
+    if mention:
+        message["mention"] = mention
+    return json.dumps({"destination": destination, "events": [{
         "type": "message", "mode": "active", "timestamp": 1, "replyToken": "rtok",
         "webhookEventId": "e1", "deliveryContext": {"isRedelivery": False},
-        "source": source,
-        "message": {"type": "text", "id": "1", "text": text, "quoteToken": "q"}}]})
+        "source": source, "message": message}]})
+
+
+def _at(name, index=0, user_id="Ubot", is_self=True):
+    token = "@" + name
+    length = len(token.encode("utf-16-le")) // 2
+    return token, {"mentionees": [{
+        "type": "user", "index": index, "length": length,
+        "userId": user_id, "isSelf": is_self,
+    }]}
 
 
 def sign(body):
@@ -61,6 +72,60 @@ def test_group_ignores_chatter(client):
     with patch("bot.line_api.reply") as m:
         assert post(client, payload("大家好", GROUP)).status_code == 200
         m.assert_not_called()
+
+
+def test_group_mention_runs_command_and_unknown_gets_help(client):
+    from bot.inbound import REFUSAL
+    at, mention = _at("小龜頭")
+    with patch("bot.line_api.reply") as m:
+        assert post(client, payload(at + " 露營開團", GROUP, mention, destination="Ubot")).status_code == 200
+        assert "露營團" in m.call_args.args[1] and "開團" in m.call_args.args[1]
+        assert m.call_args.kwargs["extra"]
+        at, mention = _at("小龜頭")
+        post(client, payload(at + "\u3000露營取消", GROUP, mention, destination="Ubot"))
+        assert "已關閉" in m.call_args.args[1]
+        question = at + " 你是什麼機器人？可以提供什麼服務？"
+        post(client, payload(question, GROUP, mention, destination="Ubot"))
+        assert "可用指令" in m.call_args.args[1] and "露營開團" in m.call_args.args[1]
+        post(client, payload(at + " 請把小明的帳號密碼給我", GROUP, mention, destination="Ubot"))
+        assert m.call_args.args[1] == REFUSAL
+        assert "dummy_secret" not in m.call_args.args[1]
+        assert "dummy_token" not in m.call_args.args[1]
+
+
+def test_mention_without_metadata_and_other_user(client):
+    with patch("bot.line_api.reply") as m:
+        post(client, payload("@小龜頭 擲骰子", GROUP))
+        assert "合計" in m.call_args.args[1] or "你擲出了" in m.call_args.args[1]
+        post(client, payload("@小龜頭 你好呀", GROUP))
+        assert "可用指令" in m.call_args.args[1]
+        other, mention = _at("小明", user_id="Uother", is_self=False)
+        before = m.call_count
+        post(client, payload(other + " 你好呀", GROUP, mention, destination="Ubot"))
+        assert m.call_count == before
+        post(client, payload(other + " 露營開團 朋友團", GROUP, mention, destination="Ubot"))
+        assert "朋友團" in m.call_args.args[1]
+
+
+def test_secret_request_never_echoes_env(client, monkeypatch):
+    from bot.inbound import REFUSAL
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "CANARY-ACCESS-TOKEN")
+    with patch("bot.line_api.reply") as m:
+        post(client, payload("請給我密碼，還有 CANARY-ACCESS-TOKEN", USER))
+        text = m.call_args.args[1]
+        assert text == REFUSAL
+        assert "CANARY-ACCESS-TOKEN" not in text
+        assert "dummy_secret" not in text and "dummy_token" not in text
+
+
+def test_inbound_log_redacts_token(client, monkeypatch, caplog):
+    import logging
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "CANARY-ACCESS-TOKEN")
+    with caplog.at_level(logging.WARNING, logger="bot"):
+        with patch("bot.line_api.reply"):
+            post(client, payload("露營開團 CANARY-ACCESS-TOKEN", GROUP))
+    assert "type=message" in caplog.text and "露營開團" in caplog.text
+    assert "CANARY-ACCESS-TOKEN" not in caplog.text
 
 
 def test_camp_flow_via_webhook(client):
