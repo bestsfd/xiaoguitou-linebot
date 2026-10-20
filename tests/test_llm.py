@@ -108,6 +108,45 @@ def test_secret_never_calls_llm(monkeypatch, tmp_path):
     assert "sk-canary" not in text
 
 
+def test_health_llm_reports_status_without_the_key(monkeypatch):
+    from fastapi.testclient import TestClient
+    from bot.app import app
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    missing = TestClient(app).get("/health/llm")
+    assert missing.status_code == 200
+    assert missing.json() == {
+        "key_present": False, "key_length": 0, "key_prefix_ok": False,
+        "call_ok": False, "error": "missing OPENAI_API_KEY",
+    }
+    secret = "sk-canary-do-not-leak"
+    monkeypatch.setenv("OPENAI_API_KEY", secret)
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    _Client.calls = []
+    _Client.boom = False
+    _Client.body = "ok"
+    with patch("bot.llm.httpx.Client", _Client):
+        ok = TestClient(app).get("/health/llm")
+    body = ok.json()
+    assert body["key_present"] is True
+    assert body["key_length"] == len(secret)
+    assert body["key_prefix_ok"] is True
+    assert body["call_ok"] is True and body["error"] is None
+    assert secret not in ok.text
+    _url, headers, payload, _timeout = _Client.calls[0]
+    assert payload["max_tokens"] == 1
+    assert payload["messages"] == [{"role": "user", "content": "ping"}]
+    assert secret not in json.dumps(payload)
+    assert headers["Authorization"] == "Bearer " + secret
+    _Client.boom = True
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-prefix")
+    with patch("bot.llm.httpx.Client", _Client):
+        failed = TestClient(app).get("/health/llm").json()
+    assert failed["key_prefix_ok"] is False
+    assert failed["key_length"] == len("not-a-prefix")
+    assert failed["call_ok"] is False
+    assert failed["error"] and "not-a-prefix" not in failed["error"]
+
+
 def test_history_keeps_last_ten(monkeypatch, tmp_path):
     monkeypatch.setenv("CAMP_DB", str(tmp_path / "c.db"))
     import bot.camp.store as st

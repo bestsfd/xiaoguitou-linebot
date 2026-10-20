@@ -21,8 +21,65 @@ BUTTONS = (
 )
 
 
+def _api_key():
+    return (os.environ.get("OPENAI_API_KEY") or "").strip()
+
+
 def enabled():
-    return bool((os.environ.get("OPENAI_API_KEY") or "").strip())
+    return bool(_api_key())
+
+
+def _short_error(exc, key):
+    response = getattr(exc, "response", None)
+    if response is not None:
+        snippet = ""
+        try:
+            snippet = response.text or ""
+        except Exception:
+            snippet = ""
+        text = f"status={getattr(response, 'status_code', '')} {snippet}"
+    else:
+        text = str(exc)
+    text = redact(text)
+    if key:
+        text = text.replace(key, "[redacted]")
+    text = " ".join(text.split())[:120]
+    return text or "llm call failed"
+
+
+def probe():
+    """打一則 1-token 完成，確認金鑰是否可用。不回傳金鑰本身。"""
+    key = _api_key()
+    report = {
+        "key_present": bool(key),
+        "key_length": len(key),
+        "key_prefix_ok": key.startswith("sk-"),
+        "call_ok": False,
+        "error": None,
+    }
+    if not key:
+        report["error"] = "missing OPENAI_API_KEY"
+        return report
+    base = (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
+    model = (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+    try:
+        with httpx.Client(timeout=httpx.Timeout(20.0)) as client:
+            response = client.post(
+                base + "/chat/completions",
+                headers={"Authorization": "Bearer " + key},
+                json={
+                    "model": model,
+                    "max_tokens": 1,
+                    "temperature": 0,
+                    "messages": [{"role": "user", "content": "ping"}],
+                },
+            )
+            response.raise_for_status()
+    except Exception as exc:
+        report["error"] = _short_error(exc, key)
+        return report
+    report["call_ok"] = True
+    return report
 
 
 def poll_snapshot(chat_id):

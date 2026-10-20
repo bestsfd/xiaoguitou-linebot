@@ -13,7 +13,7 @@ from . import chatlog
 from .camp.ui import cards_for_command, handle_postback, quick_for_names
 from .commands import dispatch
 from .inbound import is_secret_request, prepare_message, redact, REFUSAL
-from .llm import answer as llm_answer
+from .llm import answer as llm_answer, probe as llm_probe
 
 log = logging.getLogger("bot")
 
@@ -68,6 +68,11 @@ def build_reply(text, source, mentionees=None, destination=None):
 @app.get("/")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/health/llm")
+def health_llm():
+    return llm_probe()
 
 
 @app.post("/callback")
