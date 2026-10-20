@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .catalog import CATEGORIES, choice_labels, next_month_labels, pick_rows, tops
 from .store import BASE, Store, new_state
 
 ORGANIZER_NAME = "翔暉"
@@ -84,8 +85,8 @@ def cmd_open(args, ctx):
                                   "budget": None, "votes": []}
     ctx.store.create(ctx.chat_id, st)
     return (f"🏕️「{name}」開團！主揪：{ctx.name()}\n"
-            "點下面的按鈕：選日期、報名、填預算、看統計、找木屋\n"
-            "也可以打字：候選日期 10/31-11/1, 11/7-11/8")
+            "點下面的按鈕：日期投票、地點投票、住宿類型、需求/設施、天數、報名、填預算、看統計、找木屋、找景點\n"
+            "下個月的週末已經列好。主揪也可以「選日期」或打「候選日期 10/31-11/1, 11/7-11/8」")
 
 
 def cmd_cancel(args, ctx):
@@ -161,6 +162,7 @@ def cmd_join(args, ctx, state):
 def cmd_leave(args, ctx, state):
     m = _member(state, ctx)
     m.update(attending=False, guests=0, votes=[])
+    m["picks"] = {}
     return f"😢 {m['name']} 不參加，目前 {_headcount(state)} 人"
 
 
@@ -209,9 +211,11 @@ def compute_stats(state):
     if budgets:
         b = {"min": min(budgets), "median": statistics.median(budgets),
              "max": max(budgets), "suggested": min(budgets)}
-    return {"per_date": per, "best": best, "headcount": _headcount(state),
-            "members": len(att), "budget": b, "area": state["area"],
-            "wishes": [w["text"] for w in state["wishes"]]}
+    stats = {"per_date": per, "best": best, "headcount": _headcount(state),
+             "members": len(att), "budget": b, "area": state["area"],
+             "wishes": [w["text"] for w in state["wishes"]]}
+    stats["categories"] = _categories(state, per)
+    return stats
 
 
 @_with_plan
@@ -233,19 +237,54 @@ def cmd_stats(args, ctx, state):
         L.append("📝 需求：" + "、".join(s["wishes"]))
     if state["options"]:
         L.append(_options_tally(state))
+    for key, title in CATEGORIES:
+        if key == "date":
+            continue
+        rows = s["categories"][key]
+        voted = [row for row in rows if row["count"]]
+        if not voted:
+            L.append(f"{title}：尚無")
+            continue
+        best = {row["label"] for row in tops(rows)}
+        for row in voted:
+            mark = "⭐" if row["label"] in best else ""
+            who = "、".join(row["names"])
+            L.append(f"{title} {mark}{row['label']}：{row['count']} 票 {who}")
     return "\n".join(L)
 
 
 # ---------- 找木屋 ----------
+def search_winners(state, stats=None):
+    stats = stats or compute_stats(state)
+    categories = stats["categories"]
+    stay = tops(categories["stay"])
+    nights = tops(categories["nights"])
+    dates = tops(categories["date"])
+    per = stats["budget"]["suggested"] if stats["budget"] else None
+    return {"regions": [row["label"] for row in tops(categories["region"])],
+            "stay": stay[0]["label"] if stay else None,
+            "facilities": [row["label"] for row in tops(categories["facility"])],
+            "nights": nights[0]["label"] if nights else None,
+            "dates": [row["label"] for row in dates],
+            "budget": per, "headcount": stats["headcount"]}
+
+
 def build_request(chat_id, state):
-    s = compute_stats(state)
-    best = s["best"][0]["date"] if s["best"] else None
-    per = s["budget"]["suggested"] if s["budget"] else None
+    from .places import match_cabins
+    stats = compute_stats(state)
+    winners = search_winners(state, stats)
+    per = winners["budget"]
+    best = winners["dates"][0] if winners["dates"] else None
+    matched = match_cabins(winners)
     return {"chat_id": chat_id, "plan": state["name"], "best_date": best,
-            "all_best_dates": [p["date"] for p in s["best"]], "headcount": s["headcount"],
+            "all_best_dates": winners["dates"], "headcount": stats["headcount"],
             "budget_per_person": per,
-            "budget_total": per * s["headcount"] if per is not None else None,
-            "area": s["area"], "wishes": s["wishes"], "accommodation": "木屋",
+            "budget_total": per * stats["headcount"] if per is not None else None,
+            "area": stats["area"], "wishes": stats["wishes"],
+            "accommodation": winners["stay"] or "木屋",
+            "region": "、".join(winners["regions"]) or None,
+            "facilities": winners["facilities"], "nights": winners["nights"],
+            "cabins": [cabin["name"] for cabin in matched],
             "created": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
 
 
@@ -400,6 +439,60 @@ def toggle_vote(ctx, index):
     return _short_tally(state, m["name"], date, on)
 
 
+def _categories(state, per_date):
+    date_rows = [{"label": row["date"], "count": row["count"], "names": row["names"]} for row in per_date]
+    seen = {row["label"] for row in date_rows}
+    extra = [label for label in next_month_labels() if label not in seen]
+    date_rows.extend(pick_rows(state, "date", extra))
+    out = {"date": date_rows}
+    for key, _title in CATEGORIES:
+        if key == "date":
+            continue
+        out[key] = pick_rows(state, key, choice_labels(state, key))
+    return out
+
+
+def _pick_tally(state, name, cat, label, on):
+    title = dict(CATEGORIES)[cat]
+    rows = pick_rows(state, cat, choice_labels(state, cat) if cat != "date" else next_month_labels())
+    bits = []
+    for row in rows:
+        if row["count"] == 0 and row["label"] != label:
+            continue
+        who = "、".join(row["names"]) if row["names"] else "尚無"
+        bits.append(f"{row['label']} {row['count']}票（{who}）")
+    verb = "勾選" if on else "取消"
+    return f"✅ {name} {verb} {label}\n{title}：" + "；".join(bits)
+
+
+def toggle_pick(ctx, cat, label):
+    """多選切換。不改出席人數，避免只點偏好就被算進人數。"""
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    if cat not in dict(CATEGORIES):
+        return "沒有這個選項"
+    allowed = next_month_labels() if cat == "date" else choice_labels(state, cat)
+    if label not in allowed:
+        return "沒有這個選項"
+    member = _member(state, ctx)
+    picks = member.setdefault("picks", {})
+    chosen = list(picks.get(cat) or [])
+    if label in chosen:
+        chosen.remove(label)
+        on = False
+    else:
+        chosen.append(label)
+        on = True
+    picks[cat] = chosen
+    ctx.store.save(pid, state)
+    return _pick_tally(state, member["name"], cat, label, on)
+
+
+def cmd_spots(args, ctx):
+    return "整理了台中到台北之間的親子景點。點連結看官方頁，我不會代訂或付款。"
+
+
 def set_budget_amount(ctx, amount, plus=False):
     pid, state = ctx.store.active(ctx.chat_id)
     if not pid:
@@ -432,5 +525,5 @@ CAMP_REGISTRY = {
     "候選日期": cmd_dates, "可以": cmd_vote, "投票": cmd_vote,
     "預算": cmd_budget, "人數": cmd_count, "參加": cmd_join, "不參加": cmd_leave,
     "需求": cmd_wish, "地區": cmd_area, "露營統計": cmd_stats, "統計": cmd_stats,
-    "找木屋": cmd_search, "已選": cmd_pick, "確定訂": cmd_confirm,
+    "找木屋": cmd_search, "找景點": cmd_spots, "已選": cmd_pick, "確定訂": cmd_confirm,
 }

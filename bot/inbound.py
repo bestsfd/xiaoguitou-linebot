@@ -129,7 +129,7 @@ def is_secret_request(text):
 def redact(text):
     """日誌用。去掉環境變數裡的密鑰與 Bearer，避免寫進 log。"""
     s = "" if text is None else str(text)
-    for key in ("LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"):
+    for key in ("LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN", "OPENAI_API_KEY"):
         val = os.environ.get(key) or ""
         if len(val) >= 4:
             s = s.replace(val, "[redacted]")

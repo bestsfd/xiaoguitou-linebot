@@ -9,14 +9,14 @@ from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent
 from . import line_api
 from .camp.logic import Ctx
 from .camp.store import Store
-from .camp.ui import cards_for_command, handle_postback
+from . import chatlog
+from .camp.ui import cards_for_command, handle_postback, quick_for_names
 from .commands import dispatch
-from .commands.help import HELP
 from .inbound import is_secret_request, prepare_message, redact, REFUSAL
+from .llm import answer as llm_answer
 
 log = logging.getLogger("bot")
 
-HINT = "我聽不懂這句話耶 🤔 輸入「幫助」查看可用指令。"
 app = FastAPI()
 
 
@@ -40,19 +40,29 @@ def make_ctx(source):
 
 def build_reply(text, source, mentionees=None, destination=None):
     command, mentioned = prepare_message(text, mentionees, destination)
+    one_to_one = getattr(source, "type", None) == "user"
     log.warning("inbound type=message source=%s mentioned=%s raw=%s cmd=%s",
                 getattr(source, "type", ""), mentioned,
                 redact(text or "")[:200], redact(command)[:200])
     if is_secret_request(text) or is_secret_request(command):
-        return REFUSAL, []
+        return REFUSAL, [], None
     uid, ctx = make_ctx(source)
     out = dispatch(command, uid, ctx)
-    if out is None and mentioned:
-        out = HELP
-    elif out is None and getattr(source, "type", None) == "user":
-        out = HINT
-    cards = cards_for_command(command, ctx, out) if out else []
-    return out, cards
+    quick = None
+    cards = []
+    if out is None and not (mentioned or one_to_one):
+        if command:
+            chatlog.add(ctx.chat_id, "user", "群友：" + redact(command)[:500])
+        return None, [], None
+    if out is None:
+        chatlog.add(ctx.chat_id, "user", f"{ctx.name()}：{redact(command)[:500]}")
+        out, names = llm_answer(ctx.chat_id, one_to_one=one_to_one and not mentioned)
+        quick = quick_for_names(names)
+    else:
+        chatlog.add(ctx.chat_id, "user", f"{ctx.name()}：{redact(command)[:500]}")
+        cards = cards_for_command(command, ctx, out)
+    chatlog.add(ctx.chat_id, "assistant", redact(out)[:1000])
+    return out, cards, quick
 
 
 @app.get("/")
@@ -82,9 +92,9 @@ def _handle_event(ev, destination):
     if isinstance(ev, MessageEvent) and isinstance(ev.message, TextMessageContent):
         mention = getattr(ev.message, "mention", None)
         mentionees = list(getattr(mention, "mentionees", None) or [])
-        out, cards = build_reply(ev.message.text, ev.source, mentionees, destination)
+        out, cards, quick = build_reply(ev.message.text, ev.source, mentionees, destination)
         if out:
-            line_api.reply(ev.reply_token, out, extra=cards or None)
+            line_api.reply(ev.reply_token, out, extra=cards or None, quick=quick)
         return
     if isinstance(ev, PostbackEvent):
         data = ev.postback.data

@@ -41,7 +41,7 @@ def _alt_text(extra):
     return ""
 
 
-def reply(token, text, *, extra=None):
+def reply(token, text, *, extra=None, quick=None):
     """回覆文字，可再附 Flex（extra）。Flex 不合法或被 LINE 拒絕時，改回純文字。"""
     text = text or ""
     extra = list(extra or [])
@@ -54,7 +54,7 @@ def reply(token, text, *, extra=None):
         kept.append(msg)
     messages = []
     if text:
-        messages.append(TextMessage(text=text[:5000]))
+        messages.append(TextMessage(text=text[:5000], **({"quick_reply": quick} if quick and not kept else {})))
     messages.extend(kept[:4 if text else 5])
     messages = messages[:5]
     if not messages:

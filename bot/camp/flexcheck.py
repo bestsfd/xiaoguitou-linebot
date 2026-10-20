@@ -10,6 +10,7 @@ MAX_DATA = 300
 MAX_DISPLAY = 300
 MAX_ALT = 400
 MAX_TEXT = 5000
+MAX_BOX = 10
 
 BUBBLE_SIZES = {"nano", "micro", "deca", "hecto", "kilo", "mega", "giga"}
 BUTTON_STYLES = {"primary", "secondary", "link"}
@@ -114,6 +115,8 @@ def _component(node, path):
         if not isinstance(contents, list) or not contents:
             errors.append(f"{path} 內容是空的")
         else:
+            if len(contents) > MAX_BOX:
+                errors.append(f"{path} 內容超過 {MAX_BOX} 個（{len(contents)}）")
             for i, child in enumerate(contents):
                 errors.extend(_component(child, f"{path}[{i}]"))
     elif kind == "text":
@@ -163,6 +166,10 @@ def _action(action, path):
             errors.append(f"{path} data 是空的")
         elif u16_len(data) > MAX_DATA:
             errors.append(f"{path} data 超過 {MAX_DATA}")
+    if kind == "uri":
+        uri = action.get("uri") or ""
+        if not uri.startswith("https://"):
+            errors.append(f"{path} uri 須為 https")
     display = action.get("displayText")
     if display is not None and u16_len(display) > MAX_DISPLAY:
         errors.append(f"{path} displayText 超過 {MAX_DISPLAY}")

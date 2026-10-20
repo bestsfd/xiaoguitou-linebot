@@ -252,7 +252,7 @@ def test_reply_sends_text_plus_flex(monkeypatch):
     req = rm.call_args.args[0]
     assert req.reply_token == "rtok"
     assert req.messages[0].text == "開團了" and req.messages[1].type == "flex"
-    assert req.to_dict()["messages"][1]["contents"]["type"] == "bubble"
+    assert req.to_dict()["messages"][1]["contents"]["type"] == "carousel"
     with patch("linebot.v3.messaging.MessagingApi.reply_message") as rm:
         line_api.reply("rtok", "", extra=[card])
     assert rm.call_args.args[0].messages[0].type == "flex"
