@@ -12,9 +12,16 @@ def _conf():
     return Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", ""))
 
 
-def reply(token, text):
+def reply(token, text, *, extra=None):
+    """回覆文字，可再附 Flex 等訊息（extra）。快速回覆要放在最後一則。"""
+    messages = []
+    if text:
+        messages.append(TextMessage(text=text))
+    messages.extend(extra or [])
+    if not messages:
+        return
     with ApiClient(_conf()) as c:
-        _api(c).reply_message(ReplyMessageRequest(reply_token=token, messages=[TextMessage(text=text)]))
+        _api(c).reply_message(ReplyMessageRequest(reply_token=token, messages=messages[:5]))
 
 
 def push(to, text):

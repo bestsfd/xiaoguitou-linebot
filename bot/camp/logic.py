@@ -1,4 +1,5 @@
 """露營規劃指令。handler(args, ctx) -> str | None"""
+import datetime
 import json
 import os
 import re
@@ -83,7 +84,8 @@ def cmd_open(args, ctx):
                                   "budget": None, "votes": []}
     ctx.store.create(ctx.chat_id, st)
     return (f"🏕️「{name}」開團！主揪：{ctx.name()}\n"
-            "下一步：候選日期 10/31-11/1, 11/7-11/8")
+            "點下面的按鈕：選日期、報名、填預算、看統計、找木屋\n"
+            "也可以打字：候選日期 10/31-11/1, 11/7-11/8")
 
 
 def cmd_cancel(args, ctx):
@@ -109,7 +111,7 @@ def cmd_dates(args, ctx, state):
         if d not in state["candidates"]:
             state["candidates"].append(d)
     lines = [f"{i}. {d}" for i, d in enumerate(state["candidates"], 1)]
-    return "📅 候選日期：\n" + "\n".join(lines) + "\n請回「可以 1 3」投票"
+    return "📅 候選日期：\n" + "\n".join(lines) + "\n點日期按鈕切換，或回「可以 1 3」"
 
 
 def cmd_vote(args, ctx):
@@ -142,6 +144,7 @@ def cmd_budget(args, ctx, state):
         return "格式例：預算 3000（每人台幣）"
     m = _member(state, ctx)
     m["budget"] = v
+    m.pop("budget_plus", None)
     return f"💰 {m['name']} 預算 {v} 元/人"
 
 
@@ -313,6 +316,106 @@ def cmd_confirm(args, ctx, state):
     state["phase"] = "chosen"
     o = state["options"][idx - 1]
     return f"✅ 決定：{idx}. {o.get('name')}（{o.get('price','')}）\n將由主揪 {ORGANIZER_NAME} 確認訂房，機器人不會代訂或付款"
+
+
+def iso_to_label(start, end=None):
+    """YYYY-MM-DD（可再給結束日）-> '10/31'、'11/7-8' 或 '10/31-11/1'。"""
+    try:
+        s = datetime.date.fromisoformat(start)
+        e = datetime.date.fromisoformat(end) if end else None
+    except (TypeError, ValueError):
+        raise ValueError("看不懂日期")
+    if e is not None and e < s:
+        raise ValueError("結束日要晚於開始日")
+    if e is None or e == s:
+        return f"{s.month}/{s.day}"
+    if s.year == e.year and s.month == e.month:
+        return f"{s.month}/{s.day}-{e.day}"
+    return f"{s.month}/{s.day}-{e.month}/{e.day}"
+
+
+def add_candidate(ctx, label, replace=None):
+    """主揪追加一個候選日期。replace 若已在清單中，會原位改成新日期（票號不變）。"""
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    if ctx.user_id != state["organizer"]:
+        return f"只有主揪 {state['organizer_name']} 可以設定候選日期"
+    try:
+        new = parse_dates([label])
+    except ValueError:
+        return f"看不懂日期「{label}」"
+    if not new:
+        return "請選擇日期"
+    d = new[0]
+    changed = False
+    if replace and replace in state["candidates"] and replace != d:
+        idx = state["candidates"].index(replace)
+        if d in state["candidates"]:
+            state["candidates"].pop(idx)
+        else:
+            state["candidates"][idx] = d
+        changed = True
+    if d not in state["candidates"]:
+        state["candidates"].append(d)
+        changed = True
+    if changed:
+        ctx.store.save(pid, state)
+        return f"📅 已加入 {d}"
+    return f"📅 {d} 已在候選裡"
+
+
+def _short_tally(state, name, date, on):
+    bits = []
+    for p in compute_stats(state)["per_date"]:
+        who = "、".join(p["names"]) if p["names"] else "尚無"
+        bits.append(f"{p['date']} {p['count']}票（{who}）")
+    verb = "勾選" if on else "取消"
+    return f"✅ {name} {verb} {date}\n" + "；".join(bits)
+
+
+def toggle_vote(ctx, index):
+    """點一下日期：沒投就加上，已投就取消。加上時視為參加。"""
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    n = len(state["candidates"])
+    if not n:
+        return "主揪還沒設定候選日期"
+    if not 1 <= index <= n:
+        return f"沒有第 {index} 個選項（共 {n} 個）"
+    m = _member(state, ctx)
+    votes = list(m["votes"])
+    date = state["candidates"][index - 1]
+    if index in votes:
+        votes.remove(index)
+        on = False
+    else:
+        votes.append(index)
+        votes.sort()
+        on = True
+        m["attending"] = True
+    m["votes"] = votes
+    ctx.store.save(pid, state)
+    return _short_tally(state, m["name"], date, on)
+
+
+def set_budget_amount(ctx, amount, plus=False):
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    if not isinstance(amount, int) or amount < 0:
+        return "格式例：預算 3000（每人台幣）"
+    m = _member(state, ctx)
+    m["budget"] = amount
+    if plus:
+        m["budget_plus"] = True
+    else:
+        m.pop("budget_plus", None)
+    ctx.store.save(pid, state)
+    if plus:
+        return f"💰 {m['name']} 預算 {amount} 元以上/人"
+    return f"💰 {m['name']} 預算 {amount} 元/人"
 
 
 def set_options(store, chat_id, options):
