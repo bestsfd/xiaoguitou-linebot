@@ -58,14 +58,14 @@ def reply(token, text, *, extra=None, quick=None):
     messages.extend(kept[:4 if text else 5])
     messages = messages[:5]
     if not messages:
-        messages = [TextMessage(text=(_alt_text(extra) or "請輸入「幫助」查看指令。")[:5000])]
+        messages = [TextMessage(text=(_alt_text(extra) or "打「幫助」我就告訴你指令啦。")[:5000])]
     try:
         _send(token, messages)
         return
     except Exception as exc:
         log.warning("LINE reply_message failed: %s", _describe(exc))
     if any(getattr(m, "type", None) == "flex" for m in messages):
-        fallback = text or _alt_text(extra) or "請輸入「幫助」查看指令。"
+        fallback = text or _alt_text(extra) or "打「幫助」我就告訴你指令啦。"
         try:
             _send(token, [TextMessage(text=fallback[:5000])])
         except Exception as exc:

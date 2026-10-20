@@ -7,5 +7,5 @@ FOODS = ["滷肉飯", "牛肉麵", "雞排", "蚵仔煎", "鹽酥雞", "臭豆�
 
 def handle(args, user_id="", rng=random):
     if args:
-        return f"🍽️ 在 {'、'.join(args)} 之中……就決定是「{rng.choice(args)}」！"
-    return f"🍽️ 今天就吃「{rng.choice(FOODS)}」吧！"
+        return f"🍽️ 在 {'、'.join(args)} 之中……就決定是「{rng.choice(args)}」啦！"
+    return f"🍽️ 今天就吃「{rng.choice(FOODS)}」吧耶！"

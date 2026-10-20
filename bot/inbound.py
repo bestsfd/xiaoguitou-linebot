@@ -2,7 +2,7 @@
 import os
 import re
 
-REFUSAL = "這個我幫不了，我不會提供任何人的帳號密碼或密鑰。"
+REFUSAL = "幹嘛問密碼啦，我才不說咧 😝"
 
 _WS = " \t\r\n\u3000\u00a0"
 _SECRET = re.compile(

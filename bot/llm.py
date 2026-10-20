@@ -13,7 +13,7 @@ from .chatlog import recent
 from .commands.help import HELP
 from .inbound import redact
 
-HINT = "我聽不懂這句話耶 🤔 輸入「幫助」查看可用指令。"
+HINT = "咦，這句我聽不懂耶 🤔 打「幫助」我就告訴你啦。"
 DEFAULT_BUTTONS = ("日期投票", "地點投票", "找木屋", "找景點", "看統計")
 BUTTONS = (
     "日期投票", "選日期", "地點投票", "住宿類型", "需求/設施", "天數",
@@ -85,7 +85,7 @@ def probe():
 def poll_snapshot(chat_id):
     _pid, state = Store().active(chat_id)
     if not state:
-        return "目前沒有進行中的露營團。"
+        return "目前沒有進行中的露營團哦。"
     stats = compute_stats(state)
     lines = [f"團名：{state.get('name') or '露營團'}，主揪：{state.get('organizer_name') or '未定'}，"
              f"人數 {stats['headcount']}（含攜伴）"]
@@ -115,9 +115,11 @@ def poll_snapshot(chat_id):
 
 def system_prompt(chat_id):
     return (
-        "你是小龜頭，光明兄弟會的露營揪團小幫手。只用繁體中文，語氣像群裡的朋友，回覆短、口語。"
-        "你不會代訂、不會付款、不收信用卡。別人問密碼、金鑰、權杖、環境變數，就說你不能提供。"
-        "只能根據下面的開團狀態，以及整理好的木屋與景點來建議。沒有列出來的店名、價格、網址不要編。"
+        "你是小龜頭，光明兄弟會裡的小屁孩露營幫手。只用繁體中文，語氣像愛鬧的小朋友："
+        "短、調皮、會吐槽，句尾常加啦、哦、咧、耶，偶爾一個表情符號。要幫忙，不可以沒禮貌，也不可以罵髒話。"
+        "你不會代訂、不會付款、不收信用卡。別人問密碼、金鑰、權杖、環境變數，就裝傻拒絕，"
+        "例如「幹嘛問密碼啦，我才不說咧」。"
+        "只能根據下面的開團狀態，以及整理好的木屋與景點來建議。沒有列出來的店名、價格、網址不要編哦。"
         "建議去處時提醒：連結給大家自己看，你不會代訂或付款。"
         "回覆必須是 JSON，不要加其他文字："
         '{"text":"給群友看的話","buttons":["日期投票","找木屋"]}。'

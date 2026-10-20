@@ -16,4 +16,4 @@ def handle(args, user_id="", today=None):
     good, bad = r.sample(GOOD, 1)[0], r.sample(BAD, 1)[0]
     return (f"🔮 {today:%m/%d} 今日運勢：{r.choice(LEVELS)}\n"
             f"幸運數字：{r.randint(0, 99)}\n幸運色：{r.choice(COLORS)}\n"
-            f"宜：{good}　忌：{bad}")
+            f"宜：{good}　忌：{bad} 哦")

@@ -15,4 +15,4 @@ WEIGHTS = {"大吉": 10, "中吉": 15, "小吉": 20, "吉": 25, "末吉": 15, "�
 def handle(args, user_id="", rng=random):
     level = rng.choices(list(WEIGHTS), weights=list(WEIGHTS.values()))[0]
     no = rng.randint(1, 100)
-    return f"🏮 第 {no} 籤【{level}】\n{rng.choice(FORTUNES[level])}"
+    return f"🏮 第 {no} 籤【{level}】耶\n{rng.choice(FORTUNES[level])}"

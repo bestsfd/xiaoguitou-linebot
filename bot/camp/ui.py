@@ -17,7 +17,7 @@ GREEN = "#1F6B4A"
 AMBER = "#E65100"
 BEST_BG = "#FFF4D6"
 MUTED = "#666666"
-NO_BOOK = "機器人不會代訂或付款"
+NO_BOOK = "我才不會代訂或付款咧"
 
 MENU = (
     ("日期投票", "c=poll&k=date"),
@@ -39,11 +39,11 @@ BUDGETS = (
     (5000, True, "5000 以上"),
 )
 POLL_INTRO = {
-    "date": "點週末投票，再點一次取消。這個月碰到的國定假日連假也會列出來。主揪仍可「選日期」。",
-    "region": "可複選。台中～台北之間含新竹、苗栗、桃園山區、台中北部。",
-    "stay": "想住哪一種？可複選。",
-    "facility": "朋友帶小孩請點「親子」。可複選。",
-    "nights": "預計住幾晚？",
+    "date": "點週末投票啦，再點一次就取消哦。這個月碰到的國定假日連假也會列出來。主揪仍可「選日期」耶。",
+    "region": "可複選哦。台中～台北之間含新竹、苗栗、桃園山區、台中北部啦。",
+    "stay": "想住哪一種咧？可複選啦。",
+    "facility": "朋友帶小孩就點「親子」啦。可複選哦。",
+    "nights": "預計住幾晚呀？點一下啦。",
 }
 
 
@@ -119,7 +119,7 @@ def _bubble(header, body_contents, *, alt, quick=None, header_color=GREEN):
 def menu_card(state, user_id=""):
     state = state or {}
     bubbles = []
-    hint = FlexText(text=f"主揪 {state.get('organizer_name') or '未定'}。點按鈕即可，不用打字。{NO_BOOK}。",
+    hint = FlexText(text=f"主揪 {state.get('organizer_name') or '未定'} 哦。點按鈕就好啦，不用打字。{NO_BOOK}。",
                     size="sm", color=MUTED, wrap=True)
     buttons = [_btn(label, data) for label, data in MENU]
     bubbles.extend(_bubbles(f"🏕️ {state.get('name') or '露營團'}", [hint] + buttons))
@@ -188,7 +188,7 @@ def poll_card(state, user_id, cat):
 def date_start_card(state):
     picker = DatetimePickerAction(label="選開始日", data="c=date_start", mode="date")
     body = [
-        FlexText(text="點「選開始日」就會加入候選。若是連續幾天，加入後再選結束日。", wrap=True, size="sm", color=MUTED),
+        FlexText(text="點「選開始日」就會加入候選啦。連續幾天的話，加入後再選結束日哦。", wrap=True, size="sm", color=MUTED),
         FlexText(text="也可以直接打「候選日期 10/31-11/1, 11/7-11/8」。", wrap=True, size="sm", color=MUTED, margin="sm"),
         FlexButton(style="primary", height="sm", margin="md", color=GREEN, action=picker),
     ]
@@ -202,7 +202,7 @@ def date_end_card(state, start_iso, start_label):
     data = f"c=date_end&s={start_iso}"
     picker = DatetimePickerAction(label="選結束日", data=data, mode="date", initial=start_iso, min=start_iso)
     already = len(state.get("candidates") or [])
-    hint = f"開始日 {start_label}。選結束日，或按「就這一天」。"
+    hint = f"開始日 {start_label} 哦。選結束日，或按「就這一天」啦。"
     if already:
         hint += f"目前已有 {already} 個候選。"
     body = [
@@ -218,7 +218,7 @@ def vote_card(state, user_id="", extend_iso=None):
     member = (state.get("members") or {}).get(user_id) or {}
     votes = set(member.get("votes") or [])
     per = {p["idx"]: p for p in compute_stats(state)["per_date"]}
-    body = [FlexText(text="點日期投票，再點一次取消。", size="sm", color=MUTED, wrap=True)]
+    body = [FlexText(text="點日期投票啦，再點一次取消哦。", size="sm", color=MUTED, wrap=True)]
     actions = []
     if extend_iso and user_id and user_id == state.get("organizer"):
         try:
@@ -228,13 +228,13 @@ def vote_card(state, user_id="", extend_iso=None):
         picker = DatetimePickerAction(label="接結束日", data=f"c=date_end&s={extend_iso}", mode="date",
                                       initial=extend_iso, min=extend_iso)
         if start_label:
-            body.append(FlexText(text=f"{start_label} 已加入。連續天數再點「接結束日」。",
+            body.append(FlexText(text=f"{start_label} 已加入啦。連續天數再點「接結束日」哦。",
                                  size="sm", color=MUTED, wrap=True, margin="md"))
         body.append(FlexButton(style="secondary", height="sm", margin="sm", action=picker))
         actions.append(picker)
     candidates = state.get("candidates") or []
     if not candidates:
-        body.append(FlexText(text="還沒有候選日期。", size="sm", margin="md", wrap=True))
+        body.append(FlexText(text="還沒有候選日期耶。", size="sm", margin="md", wrap=True))
     for index, date in enumerate(candidates, 1):
         count = per.get(index, {}).get("count", 0)
         picked = index in votes
@@ -247,12 +247,12 @@ def vote_card(state, user_id="", extend_iso=None):
         body.append(_btn("再加日期", "c=dates", style="secondary"))
     actions.extend(menu_actions())
     title = state.get("name") or "露營"
-    return _flex(_bubbles(f"🗳️ {title} 日期投票", body), alt="點日期投票，再點一次取消", quick=_qr(actions))
+    return _flex(_bubbles(f"🗳️ {title} 日期投票", body), alt="點日期投票啦，再點一次取消", quick=_qr(actions))
 
 
 def signup_card(state):
     body = [
-        FlexText(text=f"「{state.get('name') or '露營'}」點選你的出席。攜伴請按 +1 或 +2。",
+        FlexText(text=f"「{state.get('name') or '露營'}」來報名啦。自己來按參加，有帶人就按 +1 或 +2 哦。",
                  size="sm", color=MUTED, wrap=True),
         _btn("參加", "c=join&g=0", color=GREEN),
         _btn("參加+1", "c=join&g=1", color="#2E7D32"),
@@ -268,7 +268,7 @@ def signup_card(state):
 
 def budget_card(state):
     body = [
-        FlexText(text=f"「{state.get('name') or '露營'}」每人預算（台幣）。也可直接打「預算 3500」。",
+        FlexText(text=f"「{state.get('name') or '露營'}」每人預算（台幣）哦。也可直接打「預算 3500」啦。",
                  size="sm", color=MUTED, wrap=True),
     ]
     actions = []
@@ -363,12 +363,12 @@ def cabin_message(state):
     cabins = match_cabins(winners)
     summary = _winner_line(state) or "還沒投地區，先列出台中到台北之間的親子木屋"
     if not cabins:
-        body = [FlexText(text=f"{summary}。這組條件還沒有對上的木屋，可以改地點、房型或預算。{NO_BOOK}。",
+        body = [FlexText(text=f"{summary}。這組條件還沒有對上的木屋耶，改地點、房型或預算看看啦。{NO_BOOK}。",
                          size="sm", wrap=True)]
         return _flex(_bubbles("🏡 木屋", body), alt="沒有對上的木屋，不會代訂或付款")
     bubbles = _bubbles("🏡 對上的木屋", [
         FlexText(text=summary, size="sm", wrap=True),
-        FlexText(text=f"以下是整理好的親子向住宿。點官方頁自己看，{NO_BOOK}。", size="sm", color=MUTED, wrap=True),
+        FlexText(text=f"以下是整理好的親子向住宿啦。點官方頁自己看哦，{NO_BOOK}。", size="sm", color=MUTED, wrap=True),
     ])
     for cabin in cabins[:10]:
         spots = "、".join(item["name"] for item in attraction_entries(cabin["attractions"]))
@@ -399,12 +399,12 @@ def spots_message(state, cabin_id=None):
         pairs = spots_for(winners, pool if state else [])
         header = "📍 親子景點"
     if not pairs:
-        body = [FlexText(text=f"目前沒有對上的景點。{NO_BOOK}。", size="sm", wrap=True)]
+        body = [FlexText(text=f"目前沒有對上的景點耶。{NO_BOOK}。", size="sm", wrap=True)]
         return _flex(_bubbles(header, body), alt="沒有對上的景點")
     bubbles = []
     for key, spot in pairs:
         nearby = [item["name"] for item in pool if key in item["attractions"]]
-        note = "、".join(nearby) if nearby else "這批木屋資料裡沒有同一帶的小木屋，可當順遊"
+        note = "、".join(nearby) if nearby else "這批木屋資料裡沒有同一帶的小木屋耶，可當順遊啦"
         bubbles.extend(_bubbles(spot["name"], [
             FlexText(text=f"{spot['county']}｜{spot['kind']}", size="sm", color=MUTED, wrap=True),
             FlexText(text=spot["blurb"], size="sm", wrap=True),
@@ -451,7 +451,7 @@ def _active(ctx):
 
 def _only_organizer(ctx, state):
     if ctx.user_id != state.get("organizer"):
-        return f"只有主揪 {state.get('organizer_name') or ''} 可以設定候選日期"
+        return f"只有主揪 {state.get('organizer_name') or ''} 可以設定候選日期啦"
     return None
 
 
@@ -463,11 +463,11 @@ def handle_postback(data, params, ctx):
         return None, []
     params = params or {}
     if not ctx.user_id:
-        return "讀不到你的 LINE 帳號，請更新 App 後再點一次", []
+        return "讀不到你的 LINE 帳號耶，請更新 App 後再點一次啦", []
 
     if action == "spots":
         _pid, state = _active(ctx)
-        return f"點官方頁自己看。{NO_BOOK}。", [spots_message(state, query.get("id"))]
+        return f"點官方頁自己看啦。{NO_BOOK}。", [spots_message(state, query.get("id"))]
 
     pid, state = _active(ctx)
     if not pid:
@@ -480,14 +480,14 @@ def handle_postback(data, params, ctx):
             return denied, cards
 
     if action == "dates":
-        return "請選擇開始日期。", [date_start_card(state)]
+        return "請選擇開始日期啦。", [date_start_card(state)]
 
     if action == "date_start":
         iso = params.get("date")
         try:
             label = iso_to_label(iso)
         except ValueError:
-            return "沒有收到日期，請再點一次", [date_start_card(state)]
+            return "沒有收到日期耶，請再點一次啦", [date_start_card(state)]
         text = add_candidate(ctx, label)
         _, state = _active(ctx)
         cards = [vote_card(state, ctx.user_id, extend_iso=iso)] if state and state.get("candidates") else []
@@ -508,9 +508,9 @@ def handle_postback(data, params, ctx):
         start = query.get("s")
         if not end:
             try:
-                return "沒有收到結束日，請再點一次", [date_end_card(state, start, iso_to_label(start))]
+                return "沒有收到結束日耶，請再點一次啦", [date_end_card(state, start, iso_to_label(start))]
             except ValueError:
-                return "沒有收到結束日，請再點一次", [date_start_card(state)]
+                return "沒有收到結束日耶，請再點一次啦", [date_start_card(state)]
         try:
             label = iso_to_label(start, end)
         except ValueError as exc:
@@ -526,14 +526,14 @@ def handle_postback(data, params, ctx):
 
     if action == "votes":
         if not state.get("candidates"):
-            return "主揪還沒設定候選日期", [date_start_card(state)] if ctx.user_id == state.get("organizer") else []
-        return "點日期投票，再點一次取消。", [vote_card(state, ctx.user_id)]
+            return "主揪還沒設定候選日期耶", [date_start_card(state)] if ctx.user_id == state.get("organizer") else []
+        return "點日期投票啦，再點一次取消哦。", [vote_card(state, ctx.user_id)]
 
     if action == "vote":
         try:
             index = int(query.get("i"))
         except (TypeError, ValueError):
-            return "請點日期按鈕", [vote_card(state, ctx.user_id)] if state.get("candidates") else []
+            return "請點日期按鈕啦", [vote_card(state, ctx.user_id)] if state.get("candidates") else []
         text = toggle_vote(ctx, index)
         _, state = _active(ctx)
         cards = [vote_card(state, ctx.user_id)] if state and state.get("candidates") else []
@@ -542,7 +542,7 @@ def handle_postback(data, params, ctx):
     if action == "poll":
         cat = query.get("k")
         if cat not in dict(CATEGORIES):
-            return "沒有這個選項", [menu_card(state, ctx.user_id)]
+            return "沒有這個選項耶", [menu_card(state, ctx.user_id)]
         return POLL_INTRO[cat], [poll_card(state, ctx.user_id, cat)]
 
     if action == "pick":
@@ -553,11 +553,11 @@ def handle_postback(data, params, ctx):
         return text, cards
 
     if action == "signup":
-        return "請點選是否參加。", [signup_card(state)]
+        return "請點選是否參加啦。", [signup_card(state)]
 
     if action == "join":
         if query.get("g") not in {"0", "1", "2"}:
-            return "請點參加、參加+1 或參加+2", [signup_card(state)]
+            return "請點參加、參加+1 或參加+2 啦", [signup_card(state)]
         guests = int(query["g"])
         text = cmd_join([f"+{guests}"] if guests else [], ctx)
         return text, [signup_card(state)]
@@ -566,13 +566,13 @@ def handle_postback(data, params, ctx):
         return cmd_leave([], ctx), [signup_card(state)]
 
     if action == "budget":
-        return "請點每人預算，或輸入「預算 金額」。", [budget_card(state)]
+        return "請點每人預算啦，或輸入「預算 金額」。", [budget_card(state)]
 
     if action == "bud":
         allowed = {str(amount): (amount, plus) for amount, plus, _label in BUDGETS}
         picked = allowed.get(query.get("v"))
         if not picked:
-            return "請點預算按鈕，或輸入「預算 金額」。", [budget_card(state)]
+            return "請點預算按鈕啦，或輸入「預算 金額」。", [budget_card(state)]
         amount, plus = picked
         if query.get("plus") == "1" and amount == 5000:
             plus = True
@@ -586,7 +586,7 @@ def handle_postback(data, params, ctx):
         text = cmd_search([], ctx)
         _, state = _active(ctx)
         if text and text.startswith("已整理好條件"):
-            text += f"\n提醒：{NO_BOOK}，訂房由主揪確認。"
+            text += f"\n提醒哦：{NO_BOOK}，訂房由主揪確認啦。"
             cards = [cabin_message(state)] if state else []
         else:
             cards = [menu_card(state, ctx.user_id)] if state else []

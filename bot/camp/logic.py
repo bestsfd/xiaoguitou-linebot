@@ -28,7 +28,7 @@ class Ctx:
         return self.name_fn(self.user_id)
 
 
-NO_PLAN = "目前沒有進行中的露營團，輸入「露營開團 名稱」開始 🏕️"
+NO_PLAN = "咦，目前沒有進行中的露營團耶。打「露營開團 名稱」開始啦 🏕️"
 
 
 def parse_dates(args):
@@ -78,15 +78,15 @@ def _with_plan(fn):
 def cmd_open(args, ctx):
     pid, state = ctx.store.active(ctx.chat_id)
     if pid:
-        return f"已經有進行中的團「{state['name']}」，要重開請先「露營取消」"
+        return f"已經有進行中的團「{state['name']}」啦，要重開請先「露營取消」哦"
     name = " ".join(args) or "露營團"
     st = new_state(name, ctx.user_id, ctx.name())
     st["members"][ctx.user_id] = {"name": ctx.name(), "attending": True, "guests": 0,
                                   "budget": None, "votes": []}
     ctx.store.create(ctx.chat_id, st)
-    return (f"🏕️「{name}」開團！主揪：{ctx.name()}\n"
-            "點下面的按鈕：日期投票、地點投票、住宿類型、需求/設施、天數、報名、填預算、看統計、找木屋、找景點\n"
-            "下個月的週末已經列好。主揪也可以「選日期」或打「候選日期 10/31-11/1, 11/7-11/8」")
+    return (f"🏕️「{name}」開團！主揪：{ctx.name()} 哦\n"
+            "點下面的按鈕就好啦：日期投票、地點投票、住宿類型、需求/設施、天數、報名、填預算、看統計、找木屋、找景點\n"
+            "下個月的週末我先列好咧。主揪也可以「選日期」或打「候選日期 10/31-11/1, 11/7-11/8」")
 
 
 def cmd_cancel(args, ctx):
@@ -94,25 +94,25 @@ def cmd_cancel(args, ctx):
     if not pid:
         return NO_PLAN
     ctx.store.close(pid)
-    return f"已關閉「{state['name']}」"
+    return f"已關閉「{state['name']}」啦"
 
 
 # ---------- 規劃 ----------
 @_with_plan
 def cmd_dates(args, ctx, state):
     if ctx.user_id != state["organizer"]:
-        return f"只有主揪 {state['organizer_name']} 可以設定候選日期"
+        return f"只有主揪 {state['organizer_name']} 可以設定候選日期啦"
     try:
         new = parse_dates(args)
     except ValueError as e:
-        return f"看不懂日期「{e}」，格式例：候選日期 10/31-11/1, 11/7-11/8"
+        return f"看不懂日期「{e}」耶，格式例：候選日期 10/31-11/1, 11/7-11/8"
     if not new:
-        return "格式例：候選日期 10/31-11/1, 11/7-11/8"
+        return "格式例：候選日期 10/31-11/1, 11/7-11/8 啦"
     for d in new:
         if d not in state["candidates"]:
             state["candidates"].append(d)
     lines = [f"{i}. {d}" for i, d in enumerate(state["candidates"], 1)]
-    return "📅 候選日期：\n" + "\n".join(lines) + "\n點日期按鈕切換，或回「可以 1 3」"
+    return "📅 候選日期：\n" + "\n".join(lines) + "\n點日期按鈕切換啦，或回「可以 1 3」"
 
 
 def cmd_vote(args, ctx):
@@ -127,13 +127,13 @@ def _vote(args, ctx, state):
     nums = parse_nums(args)
     n = len(state["candidates"])
     if not n:
-        return "主揪還沒設定候選日期"
+        return "主揪還沒設定候選日期耶"
     bad = [x for x in nums if not 1 <= x <= n]
     if bad:
-        return f"沒有第 {bad[0]} 個選項（共 {n} 個）"
+        return f"沒有第 {bad[0]} 個選項（共 {n} 個）耶"
     m = _member(state, ctx)
     m["votes"], m["attending"] = nums, True
-    return f"✅ {m['name']} 可以：" + "、".join(state["candidates"][i - 1] for i in nums)
+    return f"✅ {m['name']} 可以：" + "、".join(state["candidates"][i - 1] for i in nums) + " 耶"
 
 
 @_with_plan
@@ -142,11 +142,11 @@ def cmd_budget(args, ctx, state):
         v = int(re.sub(r"[,元$NT]", "", args[0]))
         assert v >= 0
     except Exception:
-        return "格式例：預算 3000（每人台幣）"
+        return "格式例：預算 3000（每人台幣）啦"
     m = _member(state, ctx)
     m["budget"] = v
     m.pop("budget_plus", None)
-    return f"💰 {m['name']} 預算 {v} 元/人"
+    return f"💰 {m['name']} 預算 {v} 元/人啦"
 
 
 @_with_plan
@@ -155,7 +155,7 @@ def cmd_join(args, ctx, state):
     m["attending"] = True
     m["guests"] = parse_guests(args)
     extra = f"（+{m['guests']}）" if m["guests"] else ""
-    return f"🙋 {m['name']} 參加{extra}，目前 {_headcount(state)} 人"
+    return f"🙋 {m['name']} 參加{extra}，目前 {_headcount(state)} 人啦"
 
 
 @_with_plan
@@ -163,32 +163,32 @@ def cmd_leave(args, ctx, state):
     m = _member(state, ctx)
     m.update(attending=False, guests=0, votes=[])
     m["picks"] = {}
-    return f"😢 {m['name']} 不參加，目前 {_headcount(state)} 人"
+    return f"😢 {m['name']} 不參加，目前 {_headcount(state)} 人哦"
 
 
 @_with_plan
 def cmd_count(args, ctx, state):
     names = [f"{m['name']}" + (f"+{m['guests']}" if m["guests"] else "")
              for m in state["members"].values() if m["attending"]]
-    return f"👥 {_headcount(state)} 人：" + ("、".join(names) or "尚無")
+    return f"👥 {_headcount(state)} 人：" + ("、".join(names) or "尚無") + " 哦"
 
 
 @_with_plan
 def cmd_wish(args, ctx, state):
     text = " ".join(args).strip()
     if not text:
-        return "格式例：需求 可帶狗"
+        return "格式例：需求 可帶狗 啦"
     state["wishes"].append({"by": ctx.name(), "text": text})
-    return f"📝 已記下需求：{text}"
+    return f"📝 已記下需求：{text} 啦"
 
 
 @_with_plan
 def cmd_area(args, ctx, state):
     text = " ".join(args).strip()
     if not text:
-        return f"目前地區：{state['area'] or '未定'}（設定：地區 台中）"
+        return f"目前地區：{state['area'] or '未定'}（設定：地區 台中）哦"
     state["area"] = text
-    return f"📍 地區：{text}"
+    return f"📍 地區：{text} 啦"
 
 
 # ---------- 統計 ----------
@@ -250,6 +250,7 @@ def cmd_stats(args, ctx, state):
             mark = "⭐" if row["label"] in best else ""
             who = "、".join(row["names"])
             L.append(f"{title} {mark}{row['label']}：{row['count']} 票 {who}")
+    L.append("看完再點下面的按鈕啦 😝")
     return "\n".join(L)
 
 
@@ -292,7 +293,7 @@ def build_request(chat_id, state):
 def cmd_search(args, ctx, state):
     req = build_request(ctx.chat_id, state)
     if not req["best_date"]:
-        return "還沒有人投票日期，先「候選日期」+「可以 1 2」"
+        return "還沒有人投票日期耶，先「候選日期」+「可以 1 2」啦"
     os.makedirs(ctx.req_dir, exist_ok=True)
     path = os.path.join(ctx.req_dir, f"{ctx.chat_id}-{int(time.time())}.json")
     with open(path, "w", encoding="utf-8") as f:
@@ -311,7 +312,7 @@ def format_options(options):
             L.append(f"   {o['note']}")
         if o.get("link"):
             L.append(f"   {o['link']}")
-    L.append("喜歡哪間請回「已選 編號」")
+    L.append("喜歡哪間請回「已選 編號」啦")
     return "\n".join(L)
 
 
@@ -326,19 +327,19 @@ def _options_tally(state):
 @_with_plan
 def cmd_pick(args, ctx, state):
     if not state["options"]:
-        return "還沒有木屋候選喔"
+        return "還沒有木屋候選耶"
     nums = parse_nums(args)
     if not nums or len(nums) != 1 or not 1 <= nums[0] <= len(state["options"]):
-        return f"請回「已選 1」～「已選 {len(state['options'])}」"
+        return f"請回「已選 1」～「已選 {len(state['options'])}」啦"
     state["option_votes"][ctx.user_id] = nums[0]
     _member(state, ctx)
-    return f"👍 {ctx.name()} 選 {nums[0]}. {state['options'][nums[0]-1].get('name')}\n{_options_tally(state)}"
+    return f"👍 {ctx.name()} 選 {nums[0]}. {state['options'][nums[0]-1].get('name')} 啦\n{_options_tally(state)}"
 
 
 @_with_plan
 def cmd_confirm(args, ctx, state):
     if not state["options"]:
-        return "還沒有木屋候選喔"
+        return "還沒有木屋候選耶"
     nums = parse_nums(args)
     if nums:
         idx = nums[0]
@@ -347,14 +348,14 @@ def cmd_confirm(args, ctx, state):
         for v in state["option_votes"].values():
             cnt[v] = cnt.get(v, 0) + 1
         if not cnt:
-            return "還沒人投票，請先「已選 編號」或「確定訂 編號」"
+            return "還沒人投票耶，請先「已選 編號」或「確定訂 編號」啦"
         idx = max(cnt, key=lambda k: (cnt[k], -k))
     if not 1 <= idx <= len(state["options"]):
-        return "沒有這個編號"
+        return "沒有這個編號耶"
     state["chosen"] = idx
     state["phase"] = "chosen"
     o = state["options"][idx - 1]
-    return f"✅ 決定：{idx}. {o.get('name')}（{o.get('price','')}）\n將由主揪 {ORGANIZER_NAME} 確認訂房，機器人不會代訂或付款"
+    return f"✅ 決定：{idx}. {o.get('name')}（{o.get('price','')}）\n將由主揪 {ORGANIZER_NAME} 確認訂房哦，我不會代訂或付款啦 😝"
 
 
 def iso_to_label(start, end=None):
@@ -363,9 +364,9 @@ def iso_to_label(start, end=None):
         s = datetime.date.fromisoformat(start)
         e = datetime.date.fromisoformat(end) if end else None
     except (TypeError, ValueError):
-        raise ValueError("看不懂日期")
+        raise ValueError("看不懂日期啦")
     if e is not None and e < s:
-        raise ValueError("結束日要晚於開始日")
+        raise ValueError("結束日要晚於開始日哦")
     if e is None or e == s:
         return f"{s.month}/{s.day}"
     if s.year == e.year and s.month == e.month:
@@ -379,13 +380,13 @@ def add_candidate(ctx, label, replace=None):
     if not pid:
         return NO_PLAN
     if ctx.user_id != state["organizer"]:
-        return f"只有主揪 {state['organizer_name']} 可以設定候選日期"
+        return f"只有主揪 {state['organizer_name']} 可以設定候選日期啦"
     try:
         new = parse_dates([label])
     except ValueError:
-        return f"看不懂日期「{label}」"
+        return f"看不懂日期「{label}」耶"
     if not new:
-        return "請選擇日期"
+        return "請選擇日期啦"
     d = new[0]
     changed = False
     if replace and replace in state["candidates"] and replace != d:
@@ -400,8 +401,8 @@ def add_candidate(ctx, label, replace=None):
         changed = True
     if changed:
         ctx.store.save(pid, state)
-        return f"📅 已加入 {d}"
-    return f"📅 {d} 已在候選裡"
+        return f"📅 已加入 {d} 啦"
+    return f"📅 {d} 已在候選裡啦"
 
 
 def _short_tally(state, name, date, on):
@@ -410,7 +411,7 @@ def _short_tally(state, name, date, on):
         who = "、".join(p["names"]) if p["names"] else "尚無"
         bits.append(f"{p['date']} {p['count']}票（{who}）")
     verb = "勾選" if on else "取消"
-    return f"✅ {name} {verb} {date}\n" + "；".join(bits)
+    return f"✅ {name} {verb} {date} 啦\n" + "；".join(bits)
 
 
 def toggle_vote(ctx, index):
@@ -420,9 +421,9 @@ def toggle_vote(ctx, index):
         return NO_PLAN
     n = len(state["candidates"])
     if not n:
-        return "主揪還沒設定候選日期"
+        return "主揪還沒設定候選日期耶"
     if not 1 <= index <= n:
-        return f"沒有第 {index} 個選項（共 {n} 個）"
+        return f"沒有第 {index} 個選項（共 {n} 個）耶"
     m = _member(state, ctx)
     votes = list(m["votes"])
     date = state["candidates"][index - 1]
@@ -462,7 +463,7 @@ def _pick_tally(state, name, cat, label, on):
         who = "、".join(row["names"]) if row["names"] else "尚無"
         bits.append(f"{row['label']} {row['count']}票（{who}）")
     verb = "勾選" if on else "取消"
-    return f"✅ {name} {verb} {label}\n{title}：" + "；".join(bits)
+    return f"✅ {name} {verb} {label} 啦\n{title}：" + "；".join(bits)
 
 
 def toggle_pick(ctx, cat, label):
@@ -471,10 +472,10 @@ def toggle_pick(ctx, cat, label):
     if not pid:
         return NO_PLAN
     if cat not in dict(CATEGORIES):
-        return "沒有這個選項"
+        return "沒有這個選項耶"
     allowed = next_month_labels() if cat == "date" else choice_labels(state, cat)
     if label not in allowed:
-        return "沒有這個選項"
+        return "沒有這個選項耶"
     member = _member(state, ctx)
     picks = member.setdefault("picks", {})
     chosen = list(picks.get(cat) or [])
@@ -490,7 +491,7 @@ def toggle_pick(ctx, cat, label):
 
 
 def cmd_spots(args, ctx):
-    return "整理了台中到台北之間的親子景點。點連結看官方頁，我不會代訂或付款。"
+    return "整理了台中到台北之間的親子景點啦。點連結看官方頁哦，我不會代訂或付款咧。"
 
 
 def set_budget_amount(ctx, amount, plus=False):
@@ -498,7 +499,7 @@ def set_budget_amount(ctx, amount, plus=False):
     if not pid:
         return NO_PLAN
     if not isinstance(amount, int) or amount < 0:
-        return "格式例：預算 3000（每人台幣）"
+        return "格式例：預算 3000（每人台幣）啦"
     m = _member(state, ctx)
     m["budget"] = amount
     if plus:
@@ -507,8 +508,8 @@ def set_budget_amount(ctx, amount, plus=False):
         m.pop("budget_plus", None)
     ctx.store.save(pid, state)
     if plus:
-        return f"💰 {m['name']} 預算 {amount} 元以上/人"
-    return f"💰 {m['name']} 預算 {amount} 元/人"
+        return f"💰 {m['name']} 預算 {amount} 元以上/人啦"
+    return f"💰 {m['name']} 預算 {amount} 元/人啦"
 
 
 def set_options(store, chat_id, options):
