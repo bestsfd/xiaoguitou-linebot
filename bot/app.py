@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from linebot.v3 import WebhookParser
@@ -7,8 +8,8 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, PostbackEvent, TextMessageContent
 
 from . import line_api
-from .camp.logic import Ctx
-from .camp.store import Store
+from .camp.logic import Ctx, expand_command
+from .camp.store import Store, ensure_schema
 from . import chatlog
 from .camp.ui import cards_for_command, handle_postback, quick_for_names
 from .commands import dispatch
@@ -17,7 +18,15 @@ from .llm import answer as llm_answer, probe as llm_probe
 
 log = logging.getLogger("bot")
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_app):
+    kind = ensure_schema()
+    log.warning("database ready backend=%s", kind)
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 def get_parser():
@@ -40,6 +49,7 @@ def make_ctx(source):
 
 def build_reply(text, source, mentionees=None, destination=None):
     command, mentioned = prepare_message(text, mentionees, destination)
+    command = expand_command(command)
     one_to_one = getattr(source, "type", None) == "user"
     log.warning("inbound type=message source=%s mentioned=%s raw=%s cmd=%s",
                 getattr(source, "type", ""), mentioned,

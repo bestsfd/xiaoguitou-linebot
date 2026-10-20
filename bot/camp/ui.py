@@ -10,7 +10,8 @@ from linebot.v3.messaging import (DatetimePickerAction, FlexBox, FlexBubble, Fle
 from .catalog import CATEGORIES, choice_labels, next_month_labels, tops
 from .flexcheck import clip
 from .logic import (NO_PLAN, add_candidate, cmd_join, cmd_leave, cmd_search, compute_stats,
-                    iso_to_label, search_winners, set_budget_amount, toggle_pick, toggle_vote)
+                    iso_to_label, looks_like_date_message, search_winners, set_budget_amount,
+                    toggle_pick, toggle_vote)
 from .places import ATTRACTIONS, attraction_entries, cabin_by_id, match_cabins, spots_for
 
 GREEN = "#1F6B4A"
@@ -433,8 +434,10 @@ def cards_for_command(text, ctx, out):
         return [menu_card(state, ctx.user_id)]
     if key == "候選日期" and out.startswith("📅"):
         return [vote_card(state, ctx.user_id)]
-    if key in ("露營統計", "統計") and out.startswith("📊"):
+    if key in ("露營統計", "統計", "看統計") and out.startswith("📊"):
         return [stats_card(state)]
+    if looks_like_date_message(text) and ("勾選" in out or "取消" in out or "對到好幾個" in out):
+        return [poll_card(state, ctx.user_id, "date")]
     if key == "找木屋" and out.startswith("已整理好條件"):
         return [cabin_message(state)]
     return []

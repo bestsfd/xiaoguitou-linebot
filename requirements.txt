@@ -3,3 +3,4 @@ fastapi
 uvicorn
 pytest
 httpx
+psycopg[binary]>=3.1

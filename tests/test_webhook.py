@@ -250,3 +250,27 @@ def test_postback_profile_fallback(monkeypatch, tmp_path):
         post(c, payload("候選日期 10/31", org))
         post(c, postback_payload("c=vote&i=1", voter))
         assert "9999" in reply.call_args.args[1]
+
+
+def test_group_typed_camp_without_mention(client, monkeypatch):
+    labels = ["11/7(六)-11/8(日)", "11/21(六)-11/22(日)"]
+    monkeypatch.setattr("bot.camp.logic.next_month_labels", lambda today=None: list(labels))
+    monkeypatch.setattr("bot.camp.catalog.next_month_labels", lambda today=None: list(labels))
+    monkeypatch.setattr("bot.camp.ui.next_month_labels", lambda today=None: list(labels))
+    with patch("bot.line_api.reply") as m:
+        post(client, payload("露營開團 秋天團", GROUP))
+        post(client, payload("11/21(六)-11/22(日)", GROUP))
+        assert "小明" in m.call_args.args[1] and "勾選" in m.call_args.args[1]
+        assert "11/21(六)-11/22(日)" in m.call_args.args[1]
+        assert m.call_args.kwargs["extra"]
+        post(client, payload("預算3000", GROUP))
+        assert "3000" in m.call_args.args[1]
+        post(client, payload("看統計", GROUP))
+        assert "秋天團" in m.call_args.args[1] and m.call_args.kwargs["extra"]
+        post(client, payload("11/21", GROUP))
+        assert "取消" in m.call_args.args[1]
+        before = m.call_count
+        post(client, payload("好廢", GROUP))
+        post(client, payload("大家好", GROUP))
+        post(client, payload("11/21去露營", GROUP))
+        assert m.call_count == before

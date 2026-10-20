@@ -2,7 +2,7 @@
 REGISTRY: 娛樂指令 handler(args, user_id) -> str
 CAMP_REGISTRY: 露營指令 handler(args, ctx) -> str | None（需要聊天室狀態）"""
 from . import dice, fortune_stick, daily_luck, food, rps, help as help_cmd
-from ..camp.logic import CAMP_REGISTRY, Ctx
+from ..camp.logic import CAMP_REGISTRY, Ctx, expand_command, try_typed_date
 from ..inbound import prepare_message
 
 REGISTRY = {
@@ -18,13 +18,17 @@ REGISTRY = {
 def dispatch(text: str, user_id: str = "", ctx: "Ctx | None" = None):
     """回傳回覆字串；非指令回傳 None。開頭的 @名稱與全形空白會先拿掉。"""
     text, _mentioned = prepare_message(text)
+    text = expand_command(text)
     parts = text.split() if text else []
-    if not parts:
-        return None
-    key, args = parts[0], parts[1:]
-    if key in REGISTRY:
-        return REGISTRY[key](args, user_id)
-    if key in CAMP_REGISTRY:
-        ctx = ctx or Ctx(chat_id=user_id, user_id=user_id)
-        return CAMP_REGISTRY[key](args, ctx)
+    if parts:
+        key, args = parts[0], parts[1:]
+        if key in REGISTRY:
+            return REGISTRY[key](args, user_id)
+        if key in CAMP_REGISTRY:
+            ctx = ctx or Ctx(chat_id=user_id, user_id=user_id)
+            return CAMP_REGISTRY[key](args, ctx)
+    if ctx is not None:
+        voted = try_typed_date(text, ctx)
+        if voted is not None:
+            return voted
     return None

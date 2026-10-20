@@ -56,6 +56,153 @@ def parse_guests(args):
     return 0
 
 
+_DATE_TOKEN = re.compile(
+    r"^(?P<sm>\d{1,2})/(?P<sd>\d{1,2})(?:\([一二三四五六日]\))?"
+    r"(?:-(?:(?P<em>\d{1,2})/)?(?P<ed>\d{1,2})(?:\([一二三四五六日]\))?)?$"
+)
+_BUDGET_TEXT = re.compile(r"^預算\s*[:：]?\s*([0-9][0-9,]*)\s*(?:元|塊)?$")
+_JOIN_TEXT = re.compile(r"^參加\s*[+＋]\s*(\d+)$")
+
+
+def expand_command(text):
+    """把群友直接打的『預算3000』『看統計』『參加+2』收成既有指令。已經是指令的話維持原樣。"""
+    text = (text or "").strip()
+    found = _BUDGET_TEXT.match(text)
+    if found:
+        return "預算 " + found.group(1).replace(",", "")
+    found = _JOIN_TEXT.match(text)
+    if found:
+        return f"參加 +{int(found.group(1))}"
+    if text == "看統計":
+        return "統計"
+    return text
+
+
+def _normalize_date_text(text):
+    text = (text or "").strip().strip("。.!！?")
+    text = text.replace("（", "(").replace("）", ")")
+    return re.sub(r"\s+", "", text)
+
+
+def _real_day(month, day):
+    try:
+        datetime.date(2024, int(month), int(day))
+    except (TypeError, ValueError):
+        return None
+    return int(month), int(day)
+
+
+def _span_of(token):
+    found = _DATE_TOKEN.match(_normalize_date_text(token))
+    if not found:
+        return None
+    start = _real_day(found.group("sm"), found.group("sd"))
+    if not start:
+        return None
+    if found.group("ed") is None:
+        return start, start
+    end_month = found.group("em") or found.group("sm")
+    end = _real_day(end_month, found.group("ed"))
+    if not end:
+        return None
+    if end[0] == start[0] and end[1] < start[1]:
+        return None
+    return start, end
+
+
+def _span_bounds(span):
+    start = datetime.date(2024, span[0][0], span[0][1])
+    end_year = 2024 if span[1] >= span[0] else 2025
+    end = datetime.date(end_year, span[1][0], span[1][1])
+    return start, end
+
+
+def _span_contains(span, day):
+    if not span:
+        return False
+    start, end = _span_bounds(span)
+    year = 2024 if day >= span[0] else 2025
+    try:
+        target = datetime.date(year, day[0], day[1])
+    except ValueError:
+        return False
+    return start <= target <= end
+
+
+def canonical_date_label(token):
+    span = _span_of(token)
+    if not span:
+        return None
+    (sm, sd), (em, ed) = span
+    if (sm, sd) == (em, ed):
+        return f"{sm}/{sd}"
+    return f"{sm}/{sd}-{em}/{ed}"
+
+
+def date_tokens(text):
+    """整句就是日期（或目錄上的週末標籤）才算。夾雜閒聊就回 None。"""
+    raw = (text or "").strip().strip("。.!！?")
+    if not raw or len(raw) > 80:
+        return None
+    norm = _normalize_date_text(raw)
+    for label in next_month_labels():
+        if _normalize_date_text(label) == norm:
+            return [label]
+    parts = [part for part in re.split(r"[,，、]+", norm) if part]
+    if not parts or len(parts) > 4:
+        return None
+    if all(_span_of(part) for part in parts):
+        return parts
+    return None
+
+
+def looks_like_date_message(text):
+    return bool(date_tokens(text))
+
+
+def _label_span(label):
+    span = _span_of(label)
+    if span:
+        return span
+    stripped = re.sub(r"[\u4e00-\u9fff]+$", "", _normalize_date_text(label))
+    return _span_of(stripped)
+
+
+def _date_options(state):
+    options = [("pick", label) for label in next_month_labels()]
+    for index, label in enumerate(state.get("candidates") or [], 1):
+        options.append(("vote", label, index))
+    return options
+
+
+def resolve_date_label(token, state):
+    """對上下個月的週末或既有候選。多個都中就回 'ambiguous'，都沒有回 None。"""
+    options = _date_options(state)
+    norm = _normalize_date_text(token)
+    exact = [item for item in options if _normalize_date_text(item[1]) == norm]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        picks = [item for item in exact if item[0] == "pick"]
+        return picks[0] if len(picks) == 1 else "ambiguous"
+    span = _span_of(token)
+    if not span:
+        return None
+    same = [item for item in options if _label_span(item[1]) == span]
+    if len(same) == 1:
+        return same[0]
+    if len(same) > 1:
+        picks = [item for item in same if item[0] == "pick"]
+        return picks[0] if len(picks) == 1 else "ambiguous"
+    if span[0] == span[1]:
+        hits = [item for item in options if _span_contains(_label_span(item[1]), span[0])]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            return "ambiguous"
+    return None
+
+
 def _member(state, ctx):
     m = state["members"].setdefault(ctx.user_id, {"name": ctx.name(), "attending": None,
                                                   "guests": 0, "budget": None, "votes": []})
@@ -492,6 +639,75 @@ def toggle_pick(ctx, cat, label):
 
 def cmd_spots(args, ctx):
     return "整理了台中到台北之間的親子景點啦。點連結看官方頁哦，我不會代訂或付款咧。"
+
+
+def _force_pick_on(ctx, label):
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    member = _member(state, ctx)
+    picks = member.setdefault("picks", {})
+    chosen = list(picks.get("date") or [])
+    if label not in chosen:
+        chosen.append(label)
+        picks["date"] = chosen
+        ctx.store.save(pid, state)
+    return _pick_tally(state, member["name"], "date", label, True)
+
+
+def _force_vote_on(ctx, index):
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    member = _member(state, ctx)
+    votes = list(member.get("votes") or [])
+    if index not in votes:
+        votes.append(index)
+        votes.sort()
+        member["votes"] = votes
+        member["attending"] = True
+        ctx.store.save(pid, state)
+    date = state["candidates"][index - 1]
+    return _short_tally(state, member["name"], date, True)
+
+
+def try_typed_date(text, ctx):
+    """群友直接打『11/21(六)-11/22(日)』或『11/21』。對到週末就投票，沒有就加進候選。"""
+    tokens = date_tokens(text)
+    if not tokens or ctx is None:
+        return None
+    pid, state = ctx.store.active(ctx.chat_id)
+    if not pid:
+        return NO_PLAN
+    plan = []
+    for token in tokens:
+        resolved = resolve_date_label(token, state)
+        if resolved == "ambiguous":
+            return "這個日期對到好幾個耶，點按鈕選一個啦"
+        if resolved is None:
+            label = canonical_date_label(token)
+            if not label:
+                return None
+            plan.append(("new", label))
+        else:
+            plan.append(resolved)
+    toggle = len(plan) == 1
+    last = None
+    for item in plan:
+        if item[0] == "new":
+            pid, state = ctx.store.active(ctx.chat_id)
+            if item[1] not in (state.get("candidates") or []):
+                state.setdefault("candidates", []).append(item[1])
+                ctx.store.save(pid, state)
+            index = state["candidates"].index(item[1]) + 1
+            last = toggle_vote(ctx, index) if toggle else _force_vote_on(ctx, index)
+        elif item[0] == "pick":
+            last = toggle_pick(ctx, "date", item[1]) if toggle else _force_pick_on(ctx, item[1])
+        else:
+            last = toggle_vote(ctx, item[2]) if toggle else _force_vote_on(ctx, item[2])
+    if not toggle and last:
+        return "都幫你勾上啦 😝\n" + last
+    return last
 
 
 def set_budget_amount(ctx, amount, plus=False):

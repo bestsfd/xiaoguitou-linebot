@@ -1,18 +1,11 @@
-"""每個聊天室保留最近幾則對話，供自由問答當上下文。"""
-from .camp.store import DB_PATH, connect
+"""每個聊天室保留最近幾則對話，供自由問答當上下文。跟露營計畫同一個資料庫。"""
+from .camp.store import connect
 
 KEEP = 10
 
 
 def _db():
-    conn = connect(DB_PATH)
-    conn.execute("""CREATE TABLE IF NOT EXISTS chat_log(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        chat_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL)""")
-    conn.execute("CREATE INDEX IF NOT EXISTS ix_chat_log ON chat_log(chat_id, id)")
-    return conn
+    return connect()
 
 
 def add(chat_id, role, content):
